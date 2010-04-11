@@ -1,7 +1,9 @@
 <?php
+namespace PHPXMLDocument;
+use \DOMDocument, \DOMElement, \DOMAttribute, \DOMXPath;
 /**
- * Represents an xml element.
- */
+* Represents an xml element.
+*/
 class XMLElement extends DOMElement
 {
     /**
@@ -19,7 +21,7 @@ class XMLElement extends DOMElement
      * Gets a well-formed XML string based on this XMLElement.
      * @return string
      */
-    public function saveXml()
+    public function saveXML()
     {
         return $this->ownerDocument->saveXML($this);
     }
@@ -213,13 +215,13 @@ class XMLElement extends DOMElement
      * Gets attibute value or default value if attribute does not exists.
      * @param string $name The attribute name.
      * @param object $default The default value.
-     * @return <type>
+     * @return object
      */
-    public function getAttribute($name)
+    public function getAttribute($name, $default = null)
     {
-        if (func_num_args() > 1 && !$this->hasAttribute($name))
+        if (!$this->hasAttribute($name))
         {
-            return func_get_arg(1);
+            return $default;
         }
         return parent::getAttribute($name);
     }
@@ -295,10 +297,20 @@ class XMLElement extends DOMElement
      * @param string $name The name of subnode.
      * @return XMLElement The created node.
      */
-    public function addNode($name)
+    public function addNode($name, XMLElement $subNode = null)
     {
         $newNode = $this->ownerDocument->createElement($name);
         $this->appendChild($newNode);
+
+        if ($subNode != null)
+        {
+            if($this->ownerDocument !== $subNode->ownerDocument)
+            {
+                $newNode->importNode($subNode);
+                return $newNode;
+            }
+            $newNode->appendChild($subNode);
+        }
         return $newNode;
     }
 
@@ -325,6 +337,16 @@ class XMLElement extends DOMElement
         $node = $this->addNode($name);
         $node->addCDATA($value);
         return $node;
+    }
+
+    public function addArray($array, $itemNodeName = 'Item', $keyAttributeName = 'Name')
+    {
+        foreach($array as $key => $value)
+        {
+            $itemNode = $this->addNodeWithCData($itemNodeName, $value);
+            $itemNode->setAttribute($keyAttributeName, $key);
+        }
+        return $this;
     }
 
     /**
@@ -363,6 +385,25 @@ class XMLElement extends DOMElement
             $this->removeChild($child);
         }
         return $this->appendXML($xml);
+    }
+
+    /**
+     * Returns element inner xml string.
+     * @return string
+     */
+    public function getInnerXML()
+    {
+        $result = "";
+        foreach($this->childNodes as $child)
+        {
+           if ($child instanceof XMLElement)
+                $result .= $child->saveXML();
+            else
+            {
+                $result .= $child->nodeValue;
+            }
+        }
+        return $result;
     }
 
     /**

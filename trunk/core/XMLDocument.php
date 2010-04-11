@@ -1,4 +1,9 @@
 <?php
+namespace PHPXMLDocument;
+
+require_once dirname(__FILE__) . '\XMLElement.php';
+
+use \DOMDocument, \DOMElement, \DOMAttribute, \DOMXPath;
 /**
  * Represents a XMLDocument.
  */
@@ -12,7 +17,7 @@ class XMLDocument extends DOMDocument
     public function __construct($xml = null)
     {
         parent::__construct();
-        $this->registerNodeClass('DOMElement', 'XMLElement');
+        $this->registerNodeClass('DOMElement', "\PHPXMLDocument\XMLElement");
         if (empty($xml))
         {
             return;
@@ -111,14 +116,13 @@ class XMLDocument extends DOMDocument
     }
 
     /**
-     * Performs XLS transformation.
-     * @param string $xsltTransformation
+     * Performs XSL transformation.
+     * @param XMLDocument $xsl
      * @return string
      */
-    public function transform($xsltTransformation)
+    public function transform(DOMDocument $xsl)
     {
-        $xsl = new XMLDocument($xsltTransformation);
-        $processor = new XSLTProcessor;
+        $processor = new \XSLTProcessor;
         $processor->importStyleSheet($xsl);
         return $processor->transformToXML($this);
     }
