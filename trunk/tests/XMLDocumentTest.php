@@ -1,14 +1,17 @@
 <?php
 
-namespace PHPXMLDocument;
-
 require_once 'PHPUnit/Framework.php';
+
 require_once dirname(__FILE__) . '/../core/XMLDocument.php';
 require_once dirname(__FILE__) . '/../core/XMLElement.php';
 
+use Amba\Core\XMLDocument;
+use Amba\Core\XMLElement;
 
-
-class XMLDocumentTest extends \PHPUnit_Framework_TestCase
+/**
+ * 
+ */
+class XMLDocumentTest extends PHPUnit_Framework_TestCase
 {
     protected function setUp()
     {
@@ -42,7 +45,7 @@ class XMLDocumentTest extends \PHPUnit_Framework_TestCase
     public function testSaveXML()
     {
        $doc1 = new XMLDocument($this->testXml);
-       $doc2 = new \DOMDocument();
+       $doc2 = new DOMDocument();
        $doc2->loadXML($this->testXml);
        $this->assertEquals($doc2->saveXML(), $doc1->saveXML());
     }
@@ -53,7 +56,7 @@ class XMLDocumentTest extends \PHPUnit_Framework_TestCase
         $this->assertNull($doc1->getRoot()->selectSingleNode("x[@id='55']"));
         $node = $doc1->getRoot()->selectSingleNode("x[@id='3']");
 
-        $doc2 = new \DOMDocument();
+        $doc2 = new DOMDocument();
         $doc2->loadXML($this->testXmlSubnode);
         $this->assertEquals($doc2->saveXML($doc2->documentElement), $node->saveXML());
 
@@ -71,7 +74,7 @@ class XMLDocumentTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals(0, count($doc1->selectNodes("x")));
 
         $doc1 = new XMLDocument($this->testXml);
-
+        
         $nodes = $doc1->getRoot()->selectNodes("x");
         $this->assertEquals(4, count($nodes));
         $nodes = $doc1->getRoot()->selectNodes("//x");
@@ -156,7 +159,7 @@ class XMLDocumentTest extends \PHPUnit_Framework_TestCase
         $dom2 = new XMLDocument("<root id='2'><x><y/></x></root>");
         $this->assertEquals($dom2->saveXML(), $dom->saveXML());
     }
-
+    
     public function testExportNode()
     {
          $dom = new XMLDocument("<root id='2'><x id='3'><y/></x></root>");
@@ -257,7 +260,7 @@ class XMLDocumentTest extends \PHPUnit_Framework_TestCase
                     <Item Name="petya"><![CDATA[]]></Item>
                  </root>'), $doc, true);
     }
-
+    
     public function testAddNodeS()
     {
         $doc1 = new XMLDocument('<x><y><z/></y></x>');
@@ -299,6 +302,106 @@ $xslt1 =
         $doc = new XMLDocument($xml);
         $xslt = new XMLDocument($xslt1);
         $this->assertEquals('<module>text data</module>',  trim($doc->transform($xslt)));
+    }
+
+    public function testDocumentWithOptions()
+    {
+        $x = new XMLDocument('<root> <c>    <bubu/>   <t>woof </t>     </c>
+        </root>', LIBXML_NOBLANKS | LIBXML_NOXMLDECL);
+        $this->assertEquals(
+            "<root><c><bubu/><t>woof </t></c></root>",
+            trim(str_replace('<?xml version="1.0"?>', '', $x->saveXML())));
+    }
+
+    public function testWrapper()
+    {
+        $doc = new XMLDocument('<aa><bb/><cc/></aa>', LIBXML_NOBLANKS);
+        $doc->getRoot()->wrapNode('woof');
+        $this->assertEquals('<woof><aa><bb/><cc/></aa></woof>', $doc->getRoot()->saveXML());
+        $doc = new XMLDocument('<aa><bb/><cc/></aa>', LIBXML_NOBLANKS);
+        $doc->getRoot()->getChildNode('bb')->wrapNode('woof');
+        $this->assertEquals('<aa><woof><bb/></woof><cc/></aa>', $doc->getRoot()->saveXML());
+    }
+
+    public function testDeleteAllChildren()
+    {
+        $doc = new XMLDocument('<aa><bb><x/><y/><z/></bb><cc/></aa>', LIBXML_NOBLANKS);
+        $doc->selectSingleNode('//bb')->removeAllChildren();
+        $this->assertEquals(
+            '<aa><bb/><cc/></aa>',
+            $doc->getRoot()->saveXML());
+    }
+
+    public function testSubtreeWalk()
+    {
+        $doc = new XMLDocument('<aa><bb><x/><y/><z/></bb><cc/></aa>', LIBXML_NOBLANKS);
+        $doc->getRoot()->subtreeWalk(
+                function($node)
+                {
+                    if ($node->nodeName == 'x' || $node->nodeName == 'cc')
+                    {
+                        $node->setAttribute('checked', 'true');
+                    }
+                }
+            );
+        $this->assertEquals(
+                self::spawn(new XMLDocument('<aa><bb><x checked="true"/><y/><z/></bb><cc checked="true"/></aa>', LIBXML_NOBLANKS))->saveXML(),
+                $doc->saveXML());
+    }
+
+    public function testRemoveExceptOne()
+    {
+        $doc = new XMLDocument(
+                '<Gallery>
+                    <Image>
+                        <Description Culture="ru">RU</Description>
+                        <Description Culture="en">EN</Description>
+                        <Description Culture="kz">KZ</Description>
+                    </Image>
+                    <Image>
+                        <Description Culture="ru">RU1</Description>
+                        <Description Culture="en">EN1</Description>
+                        <Description Culture="kz">KZ1</Description>
+                    </Image>
+                    </Gallery>');
+        $doc2 = new XMLDocument('<Gallery/>', LIBXML_NOBLANKS);
+        foreach($doc->getRoot()->selectNodes('Image') as $galleryItem)
+        {
+            $importedNode = $doc2->getRoot()->importNode($galleryItem);
+            $cultureNode = self::getNodeByCulture($importedNode, 'Description', 'ru');
+            $importedNode->removeExceptOne('Description', $cultureNode);
+        }
+        $docExpected = new XMLDocument('
+            <Gallery>
+                <Image>
+                    <Description Culture="ru">RU</Description>
+                </Image>
+                <Image>
+                    <Description Culture="ru">RU1</Description>
+                </Image>
+           </Gallery>', LIBXML_NOBLANKS);
+        $doc2 = new XMLDocument($doc2->saveXML(), LIBXML_NOBLANKS);
+        $this->assertEquals($docExpected->saveXML(), $doc2->saveXML());
+    }
+
+    public static function getNodeByCulture(XMLElement $parent, $nodeName, $cultureName)
+    {
+        $node = $parent->selectSingleNode($nodeName . "[@Culture='$cultureName']");
+        if ($node == null)
+        {
+            $defaultCulture = App::defaultCulture()->getName();
+            $node = $parent->selectSingleNode($nodeName . "[@Culture='$defaultCulture']");
+            if ($node == null)
+            {
+                $node = $parent->selectSingleNode($nodeName . "[not(@Culture)]");
+            }
+        }
+        return $node;
+    }
+
+    private static function spawn($x)
+    {
+        return $x;
     }
 }
 ?>

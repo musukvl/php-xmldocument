@@ -1,5 +1,5 @@
 <?php
-namespace PHPXMLDocument;
+namespace Amba\Core;
 use \DOMDocument, \DOMElement, \DOMAttribute, \DOMXPath;
 /**
 * Represents an xml element.
@@ -83,7 +83,7 @@ class XMLElement extends DOMElement
         $result = array();
         foreach($this->childNodes as $child)
         {
-            if ($child instanceof DOMElement)
+            if ($child instanceof \DOMNode)
             {
                 if (!empty($nodeName))
                 {
@@ -131,6 +131,10 @@ class XMLElement extends DOMElement
         return strpos($xpath, "/") !== 0 && strpos($xpath, "//") !== 0;
     }
 
+    /**
+     * Returns parent node for current node.
+     * @return XMLElement
+     */
     public function getParent()
     {
         return $this->parentNode;
@@ -314,6 +318,18 @@ class XMLElement extends DOMElement
         return $newNode;
     }
 
+     /**
+     * Adds node before this node.
+     * @param string $name The name of new node.
+     * @return XMLElement The created and added node.
+     */
+    public function addNodeBefore($name)
+    {
+        $newNode = $this->ownerDocument->createElement($name);
+        $this->getParent()->insertBefore($newNode, $this);
+        return $newNode;
+    }
+
     /**
      * Adds CDATA element to this node.
      * @param string $value The CDATA value.
@@ -352,9 +368,9 @@ class XMLElement extends DOMElement
     /**
      * Imports $node to this document and adds $node to this node.
      * @param DOMNode $node The node to import.
-     * @return XMLElement The imported node node.
+     * @return DOMNode The imported node node.
      */
-    public function importNode($node)
+    public function importNode(\DOMNode $node)
     {
         $node = $this->ownerDocument->importNode($node, true);
         $this->appendChild($node);
@@ -405,7 +421,7 @@ class XMLElement extends DOMElement
         }
         return $result;
     }
-
+    
     /**
      * Appends xml to this node.
      * @param string $xml The XML to append.
@@ -430,6 +446,81 @@ class XMLElement extends DOMElement
         if ($this->isLocalXPath($xpath))
             $xpath = $this->getNodePath() . "/" . $xpath;
         return $this->ownerDocument->map($xpath, $mapFunc);
+    }
+
+    /**
+     * Wraps this node with node with name $wrapperNodeName.
+     * @param string $wrapperNodeName.
+     * @return XMLElement wrapper node.
+     */
+    public function wrapNode($wrapperNodeName)
+    {
+        $wrapperNode = $this->ownerDocument->createElement($wrapperNodeName);
+        $this->parentNode->appendChild($wrapperNode);
+        $this->parentNode->replaceChild($wrapperNode, $this);
+        $wrapperNode->appendChild($this);
+        return $wrapperNode;
+    }
+
+    /**
+     * Removes all children of this element.
+     * @return XMLElement
+     */
+    public function removeAllChildren()
+    {
+        foreach ($this->getChildNodes() as $child)
+        {
+            $this->removeChild($child);
+        }
+        return $this;
+    }
+
+    /**
+     * Calls function $func($node) for each node of this element subtree.
+     * @param callback $func
+     */
+    public function subtreeWalk($func)
+    {
+        foreach ($this->getChildNodes() as $node)
+        {
+            $func($node);
+        }
+        foreach ($this->getChildNodes() as $node)
+        {
+            if ($node instanceof  XMLElement)
+                $node->subtreeWalk($func);
+        }
+    }
+
+    /**
+     * Removes all nodes selected by $xpath except $node.
+     * @param string $xpath
+     * @param XMLElement $node
+     */
+    public function removeExceptOne($xpath, XMLElement $node)
+    {
+        foreach($this->selectNodes($xpath) as $child)
+        {
+            if ($child !== $node)
+            {
+                $child->parentNode->removeChild($child);
+            }
+        }
+    }
+
+    /**
+     * Returns node value by $xpath. Returns $default object, if node does not exits.
+     * @param string $xpath
+     * @param object $default
+     */
+    public function getNodeValue($xpath, $default = null)
+    {
+        $node = $this->selectSingleNode($xpath);
+        if (empty($node))
+        {
+            return $default;
+        }
+        return $node->nodeValue;
     }
 }
 
