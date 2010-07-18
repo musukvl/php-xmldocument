@@ -1,5 +1,5 @@
 #labels Featured
-#Samples to demostrate XMLDocument features
+Samples to demostrate XMLDocument features
 
 = XMLDocument Samples = 
 
